@@ -1,0 +1,47 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: unzip -q pixelforge-2d.zip
+      - name: Instalar, probar y compilar la web
+        working-directory: pixelforge-2d
+        run: |
+          npm install react react-dom
+          npm install -D vite @vitejs/plugin-react typescript vitest @types/react @types/react-dom
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Generar APK
+        working-directory: pixelforge-2d
+        run: |
+          npm install @capacitor/core @capacitor/android
+          npm install -D @capacitor/cli
+          echo '{"appId":"com.pixelforge.editor","appName":"PixelForge 2D","webDir":"dist"}' > capacitor.config.json
+          npx cap add android
+          npx cap sync android
+          cd android
+          ./gradlew assembleDebug
+      - name: Renombrar APK
+        run: cp pixelforge-2d/android/app/build/outputs/apk/debug/app-debug.apk PixelForge2D.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: PixelForge 2D build ${{ github.run_number }}
+          files: PixelForge2D.apk
